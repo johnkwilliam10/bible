@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path/path.dart';
+import 'package:path/path.dart' hide context;
 import 'package:sqflite/sqflite.dart';
 
 void main() => runApp(const BibleApp());
@@ -17,7 +17,7 @@ class AppColors {
   static const Color sky = Color(0xFF3B82F6);
   static const Color gold = Color(0xFFE0A82E);
 
-  static const Map<String, Color> _lang = {
+  static const Map<String, Color> _lang = <String, Color>{
     'en': Color(0xFF2563EB),
     'sw': Color(0xFF0E9F6E),
     'kik': Color(0xFFD97706),
@@ -40,16 +40,25 @@ class LanguageOption {
   });
 }
 
-const List<LanguageOption> kLanguages = [
+const List<LanguageOption> kLanguages = <LanguageOption>[
   LanguageOption(
-      code: 'en',
-      label: 'English',
-      version: 'King James Version',
-      flag: '🇬🇧'),
+    code: 'en',
+    label: 'English',
+    version: 'King James Version',
+    flag: '🇬🇧',
+  ),
   LanguageOption(
-      code: 'sw', label: 'Kiswahili', version: 'Swahili Bible', flag: '🇰🇪'),
+    code: 'sw',
+    label: 'Kiswahili',
+    version: 'Swahili Bible',
+    flag: '🇰🇪',
+  ),
   LanguageOption(
-      code: 'kik', label: 'Kikuyu', version: 'Kikuyu Bible', flag: '🇰🇪'),
+    code: 'kik',
+    label: 'Kikuyu',
+    version: 'Kikuyu Bible',
+    flag: '🇰🇪',
+  ),
 ];
 
 LanguageOption langOf(String code) => kLanguages.firstWhere(
@@ -113,7 +122,7 @@ class BibleApp extends StatelessWidget {
 }
 
 /* ================================================================== */
-/*  DATABASE                                                           */
+/*  DATABASE HELPER (master_bible.sqlite)                              */
 /* ================================================================== */
 
 class DatabaseHelper {
@@ -156,10 +165,11 @@ class DatabaseHelper {
     List<String> langs,
   ) async {
     final Database db = await database;
-    if (langs.isEmpty) return [];
+    if (langs.isEmpty) return <ParallelVerseModel>[];
 
     final String placeholders = List.filled(langs.length, '?').join(',');
 
+    // Query your master table columns: book, chapter, verse, translation_id, text
     final List<Map<String, dynamic>> rawData = await db.rawQuery('''
       SELECT verse, translation_id, text
       FROM verses
@@ -206,8 +216,8 @@ class BibleReaderPage extends StatefulWidget {
 
 class _BibleReaderPageState extends State<BibleReaderPage> {
   List<String> _selectedLanguages = <String>['en', 'sw', 'kik'];
-  final int _currentBook = 1;
-  final int _currentChapter = 1;
+  final int _currentBook = 1; // Genesis (Book ID 1)
+  final int _currentChapter = 1; // Chapter 1
   double _fontScale = 1.0;
 
   late Future<List<ParallelVerseModel>> _versesFuture;
