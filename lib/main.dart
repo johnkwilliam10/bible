@@ -21,6 +21,7 @@ class AppColors {
     'en': Color(0xFF2563EB),
     'sw': Color(0xFF0E9F6E),
     'kik': Color(0xFFD97706),
+    'kam': Color(0xFFD97706),
   };
 
   static Color langColor(String code) => _lang[code] ?? royal;
@@ -57,6 +58,12 @@ const List<LanguageOption> kLanguages = <LanguageOption>[
     code: 'kik',
     label: 'Kikuyu',
     version: 'Kikuyu Bible',
+    flag: '🇰🇪',
+  ),
+  LanguageOption(
+    code: 'kam',
+    label: 'Kamba',
+    version: 'Kikamba Bible',
     flag: '🇰🇪',
   ),
 ];
@@ -122,7 +129,7 @@ class BibleApp extends StatelessWidget {
 }
 
 /* ================================================================== */
-/*  DATABASE HELPER (master_bible.sqlite)                              */
+/*  DATABASE HELPER                                                    */
 /* ================================================================== */
 
 class DatabaseHelper {
@@ -159,6 +166,22 @@ class DatabaseHelper {
     return openDatabase(path, readOnly: true);
   }
 
+  String _getBookAbbreviation(int bookId) {
+    const List<String> abbrs = [
+      "GEN", "EXO", "LEV", "NUM", "DEU", "JOS", "JDG", "RUT", "1SA", "2SA",
+      "1KI", "2KI", "1CH", "2CH", "EZR", "NEH", "EST", "JOB", "PSA", "PRO",
+      "ECC", "SNG", "ISA", "JER", "LAM", "EZK", "DAN", "HOS", "JOL", "AMO",
+      "OBA", "JON", "MIC", "NAM", "HAB", "ZEP", "HAG", "ZEC", "MAL",
+      "MAT", "MRK", "LUK", "JHN", "ACT", "ROM", "1CO", "2CO", "GAL", "EPH",
+      "PHP", "COL", "1TH", "2TH", "1TI", "2TI", "TIT", "PHM", "HEB", "JAS",
+      "1PE", "2PE", "1JN", "2JN", "3JN", "JUD", "REV"
+    ];
+    if (bookId >= 1 && bookId <= 66) {
+      return abbrs[bookId - 1];
+    }
+    return bookId.toString();
+  }
+
   Future<List<ParallelVerseModel>> getChapterVerses(
     int book,
     int chapter,
@@ -168,20 +191,20 @@ class DatabaseHelper {
     if (langs.isEmpty) return <ParallelVerseModel>[];
 
     final String placeholders = List.filled(langs.length, '?').join(',');
+    final String bookAbbr = _getBookAbbreviation(book);
 
-    // Query your master table columns: book, chapter, verse, translation_id, text
     final List<Map<String, dynamic>> rawData = await db.rawQuery('''
       SELECT verse, translation_id, text
       FROM verses
-      WHERE book = ? AND chapter = ? AND translation_id IN ($placeholders)
+      WHERE (book = ? OR book = ?) AND chapter = ? AND translation_id IN ($placeholders)
       ORDER BY verse ASC
-    ''', <Object?>[book, chapter, ...langs]);
+    ''', <Object?>[book, bookAbbr, chapter, ...langs]);
 
     final Map<int, Map<String, String>> grouped = <int, Map<String, String>>{};
     for (final Map<String, dynamic> row in rawData) {
-      final int vNum = row['verse'] as int;
-      final String lang = row['translation_id'] as String;
-      final String txt = row['text'] as String;
+      final int vNum = int.parse(row['verse'].toString());
+      final String lang = row['translation_id'].toString().toLowerCase();
+      final String txt = row['text'].toString();
       grouped.putIfAbsent(vNum, () => <String, String>{})[lang] = txt;
     }
 
@@ -204,6 +227,37 @@ class ParallelVerseModel {
 }
 
 /* ================================================================== */
+/*  BIBLE METADATA (BOOKS & CHAPTER COUNTS)                            */
+/* ================================================================== */
+
+const Map<int, String> kBookNames = {
+  1: 'Genesis', 2: 'Exodus', 3: 'Leviticus', 4: 'Numbers', 5: 'Deuteronomy',
+  6: 'Joshua', 7: 'Judges', 8: 'Ruth', 9: '1 Samuel', 10: '2 Samuel',
+  11: '1 Kings', 12: '2 Kings', 13: '1 Chronicles', 14: '2 Chronicles', 15: 'Ezra',
+  16: 'Nehemiah', 17: 'Esther', 18: 'Job', 19: 'Psalms', 20: 'Proverbs',
+  21: 'Ecclesiastes', 22: 'Song of Solomon', 23: 'Isaiah', 24: 'Jeremiah', 25: 'Lamentations',
+  26: 'Ezekiel', 27: 'Daniel', 28: 'Hosea', 29: 'Joel', 30: 'Amos',
+  31: 'Obadiah', 32: 'Jonah', 33: 'Micah', 34: 'Nahum', 35: 'Habakkuk',
+  36: 'Zephaniah', 37: 'Haggai', 38: 'Zechariah', 39: 'Malachi',
+  40: 'Matthew', 41: 'Mark', 42: 'Luke', 43: 'John', 44: 'Acts',
+  45: 'Romans', 46: '1 Corinthians', 47: '2 Corinthians', 48: 'Galatians', 49: 'Ephesians',
+  50: 'Philippians', 51: 'Colossians', 52: '1 Thessalonians', 53: '2 Thessalonians', 54: '1 Timothy',
+  55: '2 Timothy', 56: 'Titus', 57: 'Philemon', 58: 'Hebrews', 59: 'James',
+  60: '1 Peter', 61: '2 Peter', 62: '1 John', 63: '2 John', 64: '3 John',
+  65: 'Jude', 66: 'Revelation'
+};
+
+const Map<int, int> kBookChapters = {
+  1: 50, 2: 40, 3: 27, 4: 36, 5: 34, 6: 24, 7: 21, 8: 4, 9: 31, 10: 24,
+  11: 22, 12: 25, 13: 29, 14: 36, 15: 10, 16: 13, 17: 10, 18: 42, 19: 150, 20: 31,
+  21: 12, 22: 8, 23: 66, 24: 52, 25: 5, 26: 48, 27: 12, 28: 14, 29: 3, 30: 9,
+  31: 1, 32: 4, 33: 7, 34: 3, 35: 3, 36: 3, 37: 2, 38: 14, 39: 4,
+  40: 28, 41: 16, 42: 24, 43: 21, 44: 28, 45: 16, 46: 16, 47: 13, 48: 6, 49: 6,
+  50: 4, 51: 4, 52: 5, 53: 3, 54: 6, 55: 4, 56: 3, 57: 1, 58: 13, 59: 5,
+  60: 5, 61: 3, 62: 5, 63: 1, 64: 1, 65: 1, 66: 22,
+};
+
+/* ================================================================== */
 /*  READER PAGE                                                        */
 /* ================================================================== */
 
@@ -215,22 +269,15 @@ class BibleReaderPage extends StatefulWidget {
 }
 
 class _BibleReaderPageState extends State<BibleReaderPage> {
-  List<String> _selectedLanguages = <String>['en', 'sw', 'kik'];
-  final int _currentBook = 1; // Genesis (Book ID 1)
-  final int _currentChapter = 1; // Chapter 1
+  List<String> _selectedLanguages = <String>['en', 'sw', 'kik', 'kam'];
+  int _currentBook = 1;
+  int _currentChapter = 1;
   double _fontScale = 1.0;
 
   late Future<List<ParallelVerseModel>> _versesFuture;
+  final ScrollController _scrollController = ScrollController();
 
-  static const Map<int, String> _bookNames = <int, String>{
-    1: 'Genesis',
-    2: 'Exodus',
-    3: 'Leviticus',
-    4: 'Numbers',
-    5: 'Deuteronomy',
-  };
-
-  String get _bookName => _bookNames[_currentBook] ?? 'Book $_currentBook';
+  String get _bookName => kBookNames[_currentBook] ?? 'Book $_currentBook';
 
   @override
   void initState() {
@@ -244,6 +291,11 @@ class _BibleReaderPageState extends State<BibleReaderPage> {
       _currentChapter,
       _selectedLanguages,
     );
+    
+    // Jump to the top of the screen when loading a new chapter
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
   }
 
   /* ---------------- actions ---------------- */
@@ -319,7 +371,156 @@ class _BibleReaderPageState extends State<BibleReaderPage> {
     setState(_loadVerses);
   }
 
-  /* ---------------- settings sheet ---------------- */
+  /* ---------------- navigation & modals ---------------- */
+
+  void _openNavigatorModal() {
+    int step = 0; // 0 = Books, 1 = Chapters
+    int tempBook = _currentBook;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(0.55),
+      builder: (BuildContext sheetContext) {
+        return StatefulBuilder(
+          builder: (BuildContext modalContext, StateSetter setModalState) {
+            final ColorScheme scheme = Theme.of(modalContext).colorScheme;
+
+            return Container(
+              height: MediaQuery.of(modalContext).size.height * 0.85,
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Container(
+                      width: 46,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: scheme.onSurfaceVariant.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
+                    child: Row(
+                      children: [
+                        if (step == 1)
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                            onPressed: () => setModalState(() => step = 0),
+                          ),
+                        Expanded(
+                          child: Text(
+                            step == 0 ? 'Select Book' : '${kBookNames[tempBook]} - Select Chapter',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: scheme.onSurface,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () => Navigator.of(modalContext).pop(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(),
+                  
+                  // Dynamic Content (Books list or Chapter Grid)
+                  Expanded(
+                    child: step == 0
+                        ? ListView.builder(
+                            itemCount: kBookNames.length,
+                            itemBuilder: (ctx, index) {
+                              int bookId = kBookNames.keys.elementAt(index);
+                              String name = kBookNames[bookId]!;
+                              bool isActive = bookId == _currentBook;
+
+                              return ListTile(
+                                selected: isActive,
+                                selectedTileColor: scheme.primary.withOpacity(0.1),
+                                title: Text(
+                                  name, 
+                                  style: TextStyle(
+                                    fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                                    color: isActive ? scheme.primary : scheme.onSurface,
+                                  ),
+                                ),
+                                trailing: const Icon(Icons.chevron_right_rounded),
+                                onTap: () {
+                                  setModalState(() {
+                                    tempBook = bookId;
+                                    step = 1; // Move to chapter selection
+                                  });
+                                },
+                              );
+                            },
+                          )
+                        : GridView.builder(
+                            padding: const EdgeInsets.all(22),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 5,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                            ),
+                            itemCount: kBookChapters[tempBook] ?? 1,
+                            itemBuilder: (ctx, index) {
+                              int chapterNum = index + 1;
+                              bool isActive = (tempBook == _currentBook && chapterNum == _currentChapter);
+
+                              return InkWell(
+                                onTap: () {
+                                  Navigator.pop(modalContext);
+                                  setState(() {
+                                    _currentBook = tempBook;
+                                    _currentChapter = chapterNum;
+                                    _loadVerses();
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: isActive 
+                                        ? AppColors.royal 
+                                        : scheme.surfaceVariant.withOpacity(0.5),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isActive ? AppColors.royal : Colors.transparent,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '$chapterNum',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: isActive ? Colors.white : scheme.onSurface,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   void _openSettingsModal() {
     showModalBottomSheet<void>(
@@ -659,29 +860,42 @@ class _BibleReaderPageState extends State<BibleReaderPage> {
                       ),
                       const SizedBox(width: 14),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              '$_bookName $_currentChapter',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 23,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.5,
+                        child: GestureDetector(
+                          onTap: _openNavigatorModal, // OPENS THE BOOK SELECTOR
+                          behavior: HitTestBehavior.opaque,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      '$_bookName $_currentChapter',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 23,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.5,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 24),
+                                ],
                               ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              'PARALLEL READER ENGINE',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.72),
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1.6,
+                              const SizedBox(height: 3),
+                              Text(
+                                'TAP TO CHANGE CHAPTER',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.72),
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.6,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                       _glassButton(
@@ -801,11 +1015,12 @@ class _BibleReaderPageState extends State<BibleReaderPage> {
             futureContext,
             icon: Icons.menu_book_rounded,
             title: 'No verses found',
-            subtitle: 'Try selecting a different set of languages.',
+            subtitle: 'Try selecting a different set of languages or chapter.',
           );
         }
 
         return ListView.builder(
+          controller: _scrollController,
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 22),
           physics: const BouncingScrollPhysics(
             parent: AlwaysScrollableScrollPhysics(),
